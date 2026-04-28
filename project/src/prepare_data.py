@@ -1,6 +1,8 @@
 import numpy as np
 import pandas as pd
 
+np.random.seed(42)
+
 DATA_DIR = 'data/'
 OUTPUT_PATH = DATA_DIR + 'cambodia_merged.csv'
 
@@ -47,22 +49,25 @@ def load_merged():
     return pd.read_csv(OUTPUT_PATH)
 
 def get_features_and_targets(df):
-    feature_cols = ['area_harvested', 'production', 'avg_temp', 'rainfall_mm']
+    # 'production' is excluded: yield ≈ production / area × 1000, so including
+    # it causes direct target leakage in the regression task.
+    feature_cols = ['area_harvested', 'avg_temp', 'rainfall_mm']
     X = df[feature_cols].to_numpy(dtype=float)
     y_reg = df['yield_kg_ha'].to_numpy(dtype=float)
     y_cls = df['high_yield'].to_numpy(dtype=float)
 
-    # Feature scaling
-    X_mean = X.mean(axis=0)
-    X_std  = X.std(axis=0)
-    X_scaled = (X - X_mean) / X_std
-
-    # Train/test split — 80/20 (28 train, 7 test)
+    # Train/test split first — 80/20 (28 train, 7 test)
     # Note: small dataset (35 rows), results should be interpreted with caution
-    m_train = int(0.8 * len(X_scaled))
-    X_train, X_test   = X_scaled[:m_train], X_scaled[m_train:]
+    m_train = int(0.8 * len(X))
+    X_train_raw, X_test_raw = X[:m_train], X[m_train:]
     yr_train, yr_test = y_reg[:m_train], y_reg[m_train:]
     yc_train, yc_test = y_cls[:m_train], y_cls[m_train:]
+
+    # Fit scaler on training set only to prevent test-set contamination
+    X_mean = X_train_raw.mean(axis=0)
+    X_std  = X_train_raw.std(axis=0)
+    X_train = (X_train_raw - X_mean) / X_std
+    X_test  = (X_test_raw  - X_mean) / X_std
 
     return X_train, X_test, yr_train, yr_test, yc_train, yc_test, X_mean, X_std
 

@@ -11,12 +11,12 @@ from classification import compute_PRF
 
 PLOTS_DIR = 'outputs/plots/'
 
-# ── Regression NN: 4 → 8 → 1 (no final activation) ──────────────────────────
+# ── Regression NN: 3 → 8 → 1 (no final activation) ──────────────────────────
 class RegressionNN(nn.Module):
     def __init__(self):
         super().__init__()
         self.layers = nn.Sequential(
-            nn.Linear(4, 8),
+            nn.Linear(3, 8),
             nn.ReLU(),
             nn.Linear(8, 1)
         )
@@ -24,12 +24,12 @@ class RegressionNN(nn.Module):
     def forward(self, x):
         return self.layers(x).flatten()
 
-# ── Classification NN: 4 → 8 → 1 (Sigmoid output) ───────────────────────────
+# ── Classification NN: 3 → 8 → 1 (Sigmoid output) ───────────────────────────
 class ClassificationNN(nn.Module):
     def __init__(self):
         super().__init__()
         self.layers = nn.Sequential(
-            nn.Linear(4, 8),
+            nn.Linear(3, 8),
             nn.ReLU(),
             nn.Linear(8, 1),
             nn.Sigmoid()
@@ -38,19 +38,26 @@ class ClassificationNN(nn.Module):
     def forward(self, x):
         return self.layers(x).flatten()
 
-def train_model(model, tx, ty, cost_func, num_epochs=500, lr=0.1):
+def train_model(model, tx, ty, cost_func, num_epochs=500, lr=0.1,
+                tx_val=None, ty_val=None):
     opt = optim.Adam(model.parameters(), lr=lr)
-    losses = []
+    train_losses, val_losses = [], []
     for i in range(num_epochs):
         output = model(tx)
         loss = cost_func(output, ty)
         loss.backward()
         opt.step()
         opt.zero_grad()
-        losses.append(loss.item())
-    return losses
+        train_losses.append(loss.item())
+        if tx_val is not None and ty_val is not None:
+            with torch.no_grad():
+                val_losses.append(cost_func(model(tx_val), ty_val).item())
+    return train_losses, val_losses
 
 def run_neural_network():
+    torch.manual_seed(42)
+    np.random.seed(42)
+
     df = load_merged()
     X_train, X_test, yr_train, yr_test, yc_train, yc_test, _, _ = get_features_and_targets(df)
 
@@ -62,7 +69,10 @@ def run_neural_network():
     tyr_test  = torch.tensor(yr_test,  dtype=torch.float32)
 
     reg_model = RegressionNN()
-    reg_losses = train_model(reg_model, tx_train, tyr_train, nn.MSELoss())
+    reg_train_losses, reg_val_losses = train_model(
+        reg_model, tx_train, tyr_train, nn.MSELoss(),
+        tx_val=tx_test, ty_val=tyr_test
+    )
 
     with torch.no_grad():
         yr_pred = reg_model(tx_test).numpy()
@@ -83,7 +93,10 @@ def run_neural_network():
     tyc_test  = torch.tensor(yc_test,  dtype=torch.float32)
 
     cls_model = ClassificationNN()
-    cls_losses = train_model(cls_model, tx_train, tyc_train, nn.BCELoss())
+    cls_train_losses, cls_val_losses = train_model(
+        cls_model, tx_train, tyc_train, nn.BCELoss(),
+        tx_val=tx_test, ty_val=tyc_test
+    )
 
     with torch.no_grad():
         yc_pred = (cls_model(tx_test) > 0.5).int().numpy()
@@ -99,12 +112,12 @@ def run_neural_network():
     fig, axes = plt.subplots(1, 3, figsize=(15, 4))
     fig.suptitle('Neural Network Results', fontweight='bold')
 
-    # Loss curves
-    axes[0].plot(reg_losses, color='#d65f5f', lw=1.5, label='Regression (MSE)')
-    axes[0].plot(cls_losses, color='#4878cf', lw=1.5, label='Classification (BCE)')
-    axes[0].set_title('Training Loss')
+    # Regression loss — train vs test
+    axes[0].plot(reg_train_losses, color='#d65f5f', lw=1.5, label='Train (MSE)')
+    axes[0].plot(reg_val_losses,   color='#4878cf', lw=1.5, label='Test (MSE)',  linestyle='--')
+    axes[0].set_title('Regression Training Curve')
     axes[0].set_xlabel('Epoch')
-    axes[0].set_ylabel('Loss')
+    axes[0].set_ylabel('MSE Loss')
     axes[0].legend()
     axes[0].grid(True, alpha=0.3)
 
@@ -132,12 +145,8 @@ def run_neural_network():
     print(f'Plot saved to {PLOTS_DIR}neural_network.png')
 
     return {
-        'reg':  {'MSE': mse, 'RMSE': rmse, 'R2': r2},
-        'cls':  {'Precision': precision, 'Recall': recall, 'F1': f_score},
-        'reg_losses': reg_losses,
-        'cls_losses': cls_losses,
-        'yr_pred': yr_pred,
-        'yr_test': yr_test
+        'reg': {'MSE': mse, 'RMSE': rmse, 'R2': r2},
+        'cls': {'Precision': precision, 'Recall': recall, 'F1': f_score},
     }
 
 if __name__ == '__main__':
