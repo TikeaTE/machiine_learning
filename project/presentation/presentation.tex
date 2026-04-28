@@ -37,15 +37,14 @@
       \begin{itemize}
         \item Rice is Cambodia's staple crop and largest agricultural export
         \item Yield fluctuations directly impact food security and rural livelihoods
-        \item Historical data + climate variables are publicly available
-        \item Cambodia-specific focus $\rightarrow$ bonus relevance
+        \item Country-aggregated annual data is publicly available from FAOSTAT and the World Bank
       \end{itemize}
       \vspace{0.5em}
       \textbf{Objectives}
       \begin{itemize}
         \item Build a merged dataset from FAOSTAT + World Bank climate data
         \item Train and compare 3 ML models
-        \item Discuss what works and why
+        \item Evaluate under both chronological and cross-validation protocols
       \end{itemize}
     \column{0.4\textwidth}
       \begin{block}{Tasks}
@@ -64,10 +63,12 @@
   \begin{columns}
     \column{0.5\textwidth}
       \begin{itemize}
-        \item \textbf{FAOSTAT} — rice area harvested, production, yield
-        \item \textbf{World Bank} — annual mean temperature (\textdegree C)
-        \item \textbf{World Bank} — annual precipitation (mm)
+        \item \textbf{FAOSTAT} --- area harvested, production, yield
+        \item \textbf{World Bank} --- annual mean temperature (\textdegree C)
+        \item \textbf{World Bank} --- annual precipitation (mm)
       \end{itemize}
+      \vspace{0.5em}
+      \textit{Production was dropped: yield = production / area, so it would leak the target.}
     \column{0.5\textwidth}
       \begin{table}
         \centering
@@ -76,7 +77,6 @@
           \textbf{Feature} & \textbf{Unit} \\
           \midrule
           Area harvested   & ha \\
-          Production       & tonnes \\
           Mean temperature & \textdegree C \\
           Precipitation    & mm \\
           \midrule
@@ -88,16 +88,24 @@
   \end{columns}
   \vspace{0.1em}
   \begin{block}{Dataset size}
-    \textbf{35 rows} $\cdot$ 4 features $\cdot$ 1 target \quad|\quad
-    Train: 28 samples (1990--2017) \quad|\quad Test: 7 samples (2018--2024)\\
-    Classification threshold: median yield = \textbf{2621.6 kg/ha}
+    \textbf{35 rows} $\cdot$ 3 features $\cdot$ 1 target \quad|\quad
+    Chronological split: 28 train (1990--2017) / 7 test (2018--2024) \\
+    Classification threshold: median computed on \textbf{training set only} (no leakage)
   \end{block}
+\end{frame}
+
+\begin{frame}{Data overview}
+  \begin{figure}
+    \centering
+    \includegraphics[width=0.95\textwidth]{eda.png}
+    \caption{Yield grew strongly from 1990 to 2024; area-harvested has the highest correlation with yield ($r = 0.98$).}
+  \end{figure}
 \end{frame}
 
 % ─────────────────────────────────────────────────────────────────────────────
 \section{Proposed Methods}
 
-\begin{frame}{Method 1 — Linear Regression}
+\begin{frame}{Method 1 --- Linear Regression}
   \begin{columns}
     \column{0.55\textwidth}
       \begin{itemize}
@@ -115,7 +123,7 @@
   \end{columns}
 \end{frame}
 
-\begin{frame}{Method 2 — Logistic Regression}
+\begin{frame}{Method 2 --- Logistic Regression}
   \begin{columns}
     \column{0.55\textwidth}
       \begin{itemize}
@@ -133,24 +141,24 @@
   \end{columns}
 \end{frame}
 
-\begin{frame}{Method 3 — Neural Network (PyTorch)}
+\begin{frame}{Method 3 --- Neural Network (PyTorch)}
   \begin{columns}
     \column{0.55\textwidth}
-      \textbf{Architecture:} \quad $4 \rightarrow 8 \rightarrow 1$
+      \textbf{Architecture:} \quad $3 \rightarrow 8 \rightarrow 1$
       \begin{itemize}
-        \item Input: 4 features
+        \item Input: 3 features
         \item Hidden: 8 neurons, ReLU activation
         \item Output: 1 neuron
           \begin{itemize}
             \item Regression: no activation, MSE loss
             \item Classification: Sigmoid, BCE loss
           \end{itemize}
-        \item Optimiser: Adam (lr = 0.1)
-        \item Epochs: 500
+        \item Optimiser: Adam (lr $= 0.1$)
+        \item Epochs: 500, seed = 42
       \end{itemize}
     \column{0.45\textwidth}
       \begin{block}{Why this model?}
-        Can learn non-linear patterns. Kept small (4→8→1) to avoid overfitting on 35 samples. Directly comparable to linear baselines.
+        Can learn non-linear patterns. Kept small ($3{\to}8{\to}1$) to limit overfitting on 35 samples. Directly comparable to linear baselines.
       \end{block}
   \end{columns}
 \end{frame}
@@ -158,39 +166,67 @@
 % ─────────────────────────────────────────────────────────────────────────────
 \section{Results}
 
-\begin{frame}{Results — Regression Task}
+\begin{frame}{Results --- Regression (Chronological Split)}
   \begin{columns}
     \column{0.5\textwidth}
       \begin{table}
         \centering
-        \caption{Regression metrics on test set}
-        \begin{tabular}{lccc}
+        \caption{Test = 2018--2024}
+        \begin{tabular}{lcc}
           \toprule
-          \textbf{Model} & \textbf{RMSE} & \textbf{R\textsuperscript{2}} \\
+          \textbf{Model} & \textbf{RMSE} & \textbf{R$^2$} \\
           \midrule
-          Linear Regression & 334.73 & $-6.77$ \\
-          Neural Network    & $\sim$529  & $\sim$$-18$ \\
+          Predict train mean & 1188 & $-96.86$ \\
+          Linear Regression  & \textbf{250.5} & $-3.35$ \\
+          Neural Network     & 452.9 & $-13.22$ \\
           \bottomrule
         \end{tabular}
       \end{table}
       \vspace{0.5em}
       \begin{itemize}
-        \item Linear Regression outperforms NN
-        \item Both yield negative R\textsuperscript{2}
+        \item Linear Regression beats the naive baseline by $\sim$5$\times$
+        \item But both models still have negative $R^2$
       \end{itemize}
     \column{0.5\textwidth}
-      \begin{block}{Why negative R\textsuperscript{2}?}
-        Only 7 test samples — the test variance is too small for stable estimation. The NN overfits the 28 training samples and generalises poorly.
+      \begin{block}{Why negative $R^2$?}
+        Test years (2018--2024) yield 3335--3644 kg/ha; train max is 3297. Test points sit \textbf{outside} the training range — models extrapolate. This is distribution shift, not a model-capacity failure.
       \end{block}
   \end{columns}
 \end{frame}
 
-\begin{frame}{Results — Classification Task}
+\begin{frame}{Results --- Regression (5-fold Cross-Validation)}
   \begin{columns}
     \column{0.5\textwidth}
       \begin{table}
         \centering
-        \caption{Classification metrics on test set}
+        \caption{Mean $\pm$ std over 5 random folds}
+        \begin{tabular}{lcc}
+          \toprule
+          \textbf{Model} & \textbf{RMSE} & \textbf{R$^2$} \\
+          \midrule
+          Linear Reg. & $\mathbf{164 \pm 30}$ & $\mathbf{0.92 \pm 0.05}$ \\
+          Neural Net  & $214 \pm 92$         & $0.87 \pm 0.08$ \\
+          \bottomrule
+        \end{tabular}
+      \end{table}
+      \vspace{0.5em}
+      \begin{itemize}
+        \item When test points are interleaved with train: both models work very well
+        \item Linear Regression edges out NN
+      \end{itemize}
+    \column{0.5\textwidth}
+      \begin{block}{Take-away}
+        Same data, two protocols, opposite stories. The chronological gap was about \emph{extrapolation}, not the models. Under fair CV, $R^2 \approx 0.92$.
+      \end{block}
+  \end{columns}
+\end{frame}
+
+\begin{frame}{Results --- Classification}
+  \begin{columns}
+    \column{0.5\textwidth}
+      \begin{table}
+        \centering
+        \caption{Chronological split (test = 7/7 positive)}
         \begin{tabular}{lccc}
           \toprule
           \textbf{Model} & \textbf{P} & \textbf{R} & \textbf{F1} \\
@@ -200,22 +236,51 @@
           \bottomrule
         \end{tabular}
       \end{table}
-      \vspace{0.5em}
-      \begin{itemize}
-        \item Both models achieve perfect F1 = 1.0
-      \end{itemize}
+      \vspace{0.4em}
+      \begin{table}
+        \centering
+        \caption{5-fold stratified CV}
+        \begin{tabular}{lc}
+          \toprule
+          \textbf{Model} & \textbf{F1 (mean $\pm$ std)} \\
+          \midrule
+          Logistic Reg. & $\mathbf{0.933 \pm 0.133}$ \\
+          Neural Net    & $0.905 \pm 0.131$ \\
+          \bottomrule
+        \end{tabular}
+      \end{table}
     \column{0.5\textwidth}
-      \begin{block}{Why perfect scores?}
-        Cambodia's yield grew steadily over 35 years — Low and High yield years are almost perfectly separated in time, making the classification boundary easy to learn for any model.
+      \begin{block}{Why the chronological perfect score is meaningless}
+        All 7 test years are above-median (yield grew steadily). ``Always predict High'' = F1 1.0. Models can't be distinguished on this split.
+      \end{block}
+      \vspace{0.4em}
+      \begin{block}{What CV shows}
+        Logistic Regression slightly ahead, but within one std --- difference is not significant.
       \end{block}
   \end{columns}
 \end{frame}
 
-\begin{frame}{Results — Comparison Plot}
+\begin{frame}{Results --- Comparison Plot}
   \begin{figure}
     \centering
-    \includegraphics[width=0.92\textwidth]{comparison.png}
-    \caption{All models compared on regression (left) and classification (right) tasks.}
+    \includegraphics[width=0.95\textwidth]{comparison.png}
+    \caption{Chronological-split metrics. Left: regression RMSE; centre: regression R$^2$ (negative bars descend below 0); right: classification metrics (degenerate test set, see report).}
+  \end{figure}
+\end{frame}
+
+\begin{frame}{Results --- Cross-Validation}
+  \begin{figure}
+    \centering
+    \includegraphics[width=0.78\textwidth]{cv_comparison.png}
+    \caption{5-fold CV gives the meaningful comparison: LR slightly ahead on both tasks; NN has higher variance.}
+  \end{figure}
+\end{frame}
+
+\begin{frame}{Neural Network --- Training Curve}
+  \begin{figure}
+    \centering
+    \includegraphics[width=0.7\textwidth]{nn_training_curve.png}
+    \caption{Train MSE collapses to near zero while test MSE plateaus far above --- classic overfitting on the chronological split.}
   \end{figure}
 \end{frame}
 
@@ -227,21 +292,21 @@
     \column{0.55\textwidth}
       \textbf{Key findings:}
       \begin{itemize}
-        \item Linear Regression $>$ Neural Network on regression (small data)
-        \item Both classifiers achieve perfect F1 due to clean temporal separation
-        \item Negative R\textsuperscript{2} highlights the limitation of 35 samples
+        \item Under cross-validation: Linear Regression $R^2 = 0.92$, beats NN
+        \item Chronological negative $R^2$ = distribution shift, not capacity
+        \item Classification on chronological split is degenerate; CV gives the real comparison (LR $\approx$ NN)
+        \item Linear Reg. coefficients: \emph{area harvested} dominates (mechanisation effect)
       \end{itemize}
-      \vspace{0.5em}
+      \vspace{0.4em}
       \textbf{Future work:}
       \begin{itemize}
-        \item Province-level data for larger dataset
-        \item Add fertiliser use, flood data, irrigation coverage
-        \item LSTM to capture temporal dependencies
+        \item Province-level data $\Rightarrow$ $\sim$25$\times$ more rows
+        \item Add fertiliser, irrigation, flood data
+        \item LSTM once data volume supports it
       \end{itemize}
     \column{0.45\textwidth}
-      \begin{block}{Takeaway}
-        For small datasets, simpler models generalise better.
-        More data is the most impactful improvement possible.
+      \begin{block}{Take-away}
+        On a 35-row dataset, the simpler model wins under fair evaluation, and how you split matters more than which model you pick.
       \end{block}
   \end{columns}
   \vspace{1em}

@@ -25,25 +25,25 @@
 \maketitle
 
 \begin{abstract}
-Rice is the staple crop of Cambodia and a cornerstone of its agricultural economy. Accurately predicting rice yield is critical for food security planning and agricultural policy. This paper presents a comparative study of three machine learning models — Linear Regression, Logistic Regression, and a Neural Network — applied to Cambodia rice yield data spanning 1990 to 2024. The dataset combines annual rice production statistics from FAOSTAT with climate variables (mean temperature and precipitation) from the World Bank. Two tasks are evaluated: a regression task predicting yield in kg/ha, and a classification task predicting whether yield is high or low relative to the historical median. Results show that Linear Regression outperforms the Neural Network on the regression task due to the small dataset size, while both Logistic Regression and the Neural Network achieve perfect classification scores on the binary task.
+Rice is the staple crop of Cambodia and a cornerstone of its agricultural economy. Accurately predicting rice yield is critical for food security planning and agricultural policy. This paper presents a comparative study of three machine learning models --- Linear Regression, Logistic Regression, and a shallow Neural Network --- applied to Cambodia rice yield data spanning 1990 to 2024. The dataset combines annual rice production statistics from FAOSTAT with climate variables (mean temperature and precipitation) from the World Bank. Two tasks are evaluated: a regression task predicting yield in kg/ha, and a classification task predicting whether yield is high or low relative to the historical median. Two complementary evaluation protocols are used: a chronological 80/20 split that tests \emph{temporal extrapolation}, and a 5-fold cross-validation that estimates \emph{interpolation} performance. Under cross-validation, Linear Regression achieves R$^2 = 0.92$ and outperforms the Neural Network (R$^2 = 0.87$); under the chronological split, both models exhibit a large generalisation gap that we trace to a distribution shift between training and test years rather than to model capacity. Classification metrics are reported with explicit reference to a trivial baseline because the chronological test set is class-degenerate.
 \end{abstract}
 
 \begin{IEEEkeywords}
-rice yield prediction, Cambodia, linear regression, logistic regression, neural network, PyTorch, agricultural data
+rice yield prediction, Cambodia, linear regression, logistic regression, neural network, PyTorch, agricultural data, cross-validation
 \end{IEEEkeywords}
 
 % ─────────────────────────────────────────────────────────────────────────────
 \section{Introduction}
 
-Cambodia is one of Southeast Asia's major rice-producing nations, with rice cultivation covering over 2 million hectares annually and employing a large proportion of the rural population \cite{fao2024}. Fluctuations in rice yield directly affect food security, rural livelihoods, and national export revenue. Understanding and predicting yield trends from historical data and climate variables has therefore significant practical value.
+Cambodia is one of Southeast Asia's major rice-producing nations, with rice cultivation covering over 2 million hectares annually and employing a large proportion of the rural population \cite{fao2024}. Fluctuations in rice yield directly affect food security, rural livelihoods, and national export revenue. Understanding and predicting yield trends from historical data and climate variables therefore has significant practical value.
 
-Machine learning offers a data-driven approach to this problem. Unlike physics-based crop models that require detailed agronomic inputs, ML models can learn patterns directly from historical records. This project investigates whether simple and well-established ML methods — linear models and a shallow neural network — can capture the yield trends in Cambodia using publicly available data.
+Machine learning offers a data-driven approach to this problem. Unlike physics-based crop models that require detailed agronomic inputs, ML methods can learn patterns directly from historical records. Prior work has applied deep learning to large-scale crop yield prediction at the county level in the United States, where neural networks have outperformed linear baselines on rich, high-dimensional inputs \cite{khaki2019}. We investigate the opposite end of the data spectrum: a small, country-aggregated time series (35 annual observations) where simple linear models are expected to be competitive or superior.
 
 The objectives of this work are:
 \begin{itemize}
   \item To construct a merged dataset from FAOSTAT rice statistics and World Bank climate data.
   \item To train and evaluate three ML models on two predictive tasks (regression and classification).
-  \item To conduct a comparative analysis of model performance and discuss the implications of the results.
+  \item To compare the models under two evaluation protocols (chronological split and 5-fold CV) and analyse their disagreement.
 \end{itemize}
 
 % ─────────────────────────────────────────────────────────────────────────────
@@ -53,22 +53,21 @@ The objectives of this work are:
 Three publicly available datasets were merged:
 \begin{itemize}
   \item \textbf{FAOSTAT Crops and Livestock Products} \cite{fao2024}: Annual Cambodia rice statistics (area harvested in ha, production in tonnes, yield in kg/ha) from 1990 to 2024.
-  \item \textbf{World Bank Climate Portal — Temperature} \cite{wb_temp}: Annual mean surface air temperature (\textdegree C) for Cambodia from 1901 to 2024.
-  \item \textbf{World Bank Climate Portal — Precipitation} \cite{wb_rain}: Annual mean precipitation (mm) for Cambodia from 1901 to 2024.
+  \item \textbf{World Bank Climate Portal --- Temperature} \cite{wb_temp}: Annual mean surface air temperature (\textdegree C) for Cambodia from 1901 to 2024.
+  \item \textbf{World Bank Climate Portal --- Precipitation} \cite{wb_rain}: Annual mean precipitation (mm) for Cambodia from 1901 to 2024.
 \end{itemize}
 
-\subsection{Merged Dataset}
-After merging on year, the final dataset covers \textbf{35 years (1990–2024)} with the following features and target:
+\subsection{Merged Dataset and Feature Selection}
+After merging on year, the final dataset covers \textbf{35 years (1990--2024)}. Of the four candidate predictors initially considered, \textbf{production (tonnes) was excluded} because yield is defined as production divided by area harvested; including production would constitute direct target leakage. The retained features and target are listed in Table~\ref{tab:dataset}.
 
 \begin{table}[H]
   \centering
-  \caption{Dataset Features and Target}
+  \caption{Dataset Features and Targets (after dropping production).}
   \begin{tabular}{lll}
     \toprule
     \textbf{Variable} & \textbf{Unit} & \textbf{Role} \\
     \midrule
     Area harvested    & ha       & Feature \\
-    Production        & tonnes   & Feature \\
     Mean temperature  & \textdegree C & Feature \\
     Precipitation     & mm       & Feature \\
     Yield             & kg/ha    & Target (regression) \\
@@ -78,13 +77,23 @@ After merging on year, the final dataset covers \textbf{35 years (1990–2024)} 
   \label{tab:dataset}
 \end{table}
 
-The binary classification label is derived by thresholding yield at the historical median (2621.6 kg/ha): years above the median are labelled \textit{High} (1), others \textit{Low} (0). All features are standardised using z-score normalisation before training.
+The binary classification label is derived by thresholding yield at the \textbf{training-set} median (computed on $y_\text{train}$ only to avoid look-ahead bias): years above the median are labelled \textit{High} (1), others \textit{Low} (0). All features are standardised using training-set statistics before training (z-score normalisation).
+
+\subsection{Exploratory Analysis}
+Figure~\ref{fig:eda} (left) shows the strong upward trend in Cambodian rice yield over the period of study, and (right) the Pearson correlation matrix between features and yield. Area harvested correlates strongly with yield ($r = 0.98$) because both reflect the secular intensification of Cambodian agriculture. Climate variables show comparatively weak correlations with yield ($r \approx 0.30$).
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\columnwidth]{eda.png}
+  \caption{Left: yield over time, with the chronological train/test split marked. Right: feature--target Pearson correlation matrix.}
+  \label{fig:eda}
+\end{figure}
 
 % ─────────────────────────────────────────────────────────────────────────────
 \section{Proposed Methods}
 
 \subsection{Linear Regression}
-Linear Regression models the yield as a linear combination of the four input features:
+Linear Regression models the yield as a linear combination of the three input features:
 \begin{equation}
   \hat{y} = \mathbf{w}^\top \mathbf{x} + b
 \end{equation}
@@ -95,12 +104,12 @@ For the classification task, Logistic Regression applies a sigmoid function to a
 \begin{equation}
   \hat{p} = \sigma(\mathbf{w}^\top \mathbf{x} + b) = \frac{1}{1 + e^{-(\mathbf{w}^\top \mathbf{x} + b)}}
 \end{equation}
-A threshold of 0.5 is used to assign the binary label. The model is implemented using scikit-learn's \texttt{LogisticRegression} class. It serves as the baseline for the classification task.
+A threshold of 0.5 is used to assign the binary label. The model is implemented using scikit-learn's \texttt{LogisticRegression} class.
 
 \subsection{Neural Network}
 A shallow feedforward neural network is implemented in PyTorch \cite{pytorch} with the following architecture:
 \begin{itemize}
-  \item \textbf{Input layer:} 4 neurons (one per feature)
+  \item \textbf{Input layer:} 3 neurons (one per feature)
   \item \textbf{Hidden layer:} 8 neurons with ReLU activation
   \item \textbf{Output layer:} 1 neuron
     \begin{itemize}
@@ -109,56 +118,56 @@ A shallow feedforward neural network is implemented in PyTorch \cite{pytorch} wi
     \end{itemize}
 \end{itemize}
 
-Both variants are trained for 500 epochs using the Adam optimiser with a learning rate of 0.1. The architecture is intentionally kept small to limit overfitting on the 35-sample dataset.
+Both variants are trained for 500 epochs using the Adam optimiser with a learning rate of $0.1$. The architecture is intentionally kept small to limit overfitting on the 35-sample dataset.
 
 % ─────────────────────────────────────────────────────────────────────────────
 \section{Experiments and Results}
 
 \subsection{Experimental Setup}
-The 35-year dataset is split chronologically into a training set (80\%, 28 samples, 1990–2017) and a test set (20\%, 7 samples, 2018–2024). No shuffling is applied to preserve temporal ordering. All features are normalised using the training set statistics.
-
-The neural network is trained with:
+We use two complementary evaluation protocols:
 \begin{itemize}
-  \item Optimiser: Adam, learning rate = 0.1
-  \item Regression loss: Mean Squared Error (MSE)
-  \item Classification loss: Binary Cross-Entropy (BCE)
-  \item Epochs: 500
+  \item \textbf{Chronological split:} 80\% training (28 samples, 1990--2017), 20\% test (7 samples, 2018--2024). This protocol tests the model's ability to \emph{extrapolate} into future years.
+  \item \textbf{5-fold (stratified) cross-validation:} the dataset is shuffled (seed = 42) and partitioned into 5 folds; each fold serves as a held-out test set in turn. This protocol estimates \emph{interpolation} performance and yields more stable estimates given $N = 35$.
 \end{itemize}
+For both protocols, feature standardisation and (for classification) the median threshold are fitted on each fold's training portion only, with no leakage from the held-out data. The neural network uses Adam (lr $= 0.1$), MSE/BCE losses, and 500 epochs; \texttt{torch.manual\_seed(42)} ensures determinism.
 
 \subsection{Evaluation Metrics}
-For the \textbf{regression task}, three metrics are used:
-\begin{itemize}
-  \item \textbf{MSE} (Mean Squared Error): measures average squared prediction error.
-  \item \textbf{RMSE} (Root MSE): same unit as yield (kg/ha), easier to interpret.
-  \item \textbf{R\textsuperscript{2}} (coefficient of determination): measures explained variance; 1.0 is perfect.
-\end{itemize}
-
-For the \textbf{classification task}:
-\begin{itemize}
-  \item \textbf{Precision}: fraction of predicted High that are truly High.
-  \item \textbf{Recall}: fraction of true High correctly identified.
-  \item \textbf{F1-score}: harmonic mean of precision and recall.
-\end{itemize}
+\textbf{Regression:} MSE, RMSE (in kg/ha), and R$^2$. \textbf{Classification:} precision, recall, and F1-score. We additionally report two trivial baselines: (i) ``predict the training mean'' for regression and (ii) ``predict the training majority class'' for classification.
 
 \subsection{Results}
 
 \begin{table}[H]
   \centering
-  \caption{Regression Task Results}
-  \begin{tabular}{lccc}
+  \caption{Regression --- chronological split (test = 2018--2024). Negative R$^2$ values indicate the model performs worse than predicting the test-set mean, which is a property of the small high-yield test window (see discussion).}
+  \begin{tabular}{lcc}
     \toprule
-    \textbf{Model} & \textbf{MSE} & \textbf{RMSE} & \textbf{R\textsuperscript{2}} \\
+    \textbf{Model} & \textbf{RMSE} (kg/ha) & \textbf{R$^2$} \\
     \midrule
-    Linear Regression & 112,044 & 334.73 & $-6.77$ \\
-    Neural Network    & $\sim$280,000 & $\sim$529 & $\sim$$-18$ \\
+    Predict train mean (baseline) & 1188.15 & $-96.86$ \\
+    Linear Regression             & \textbf{250.50}  & $-3.35$ \\
+    Neural Network                & 452.87  & $-13.22$ \\
     \bottomrule
   \end{tabular}
-  \label{tab:regression}
+  \label{tab:regression_chrono}
 \end{table}
 
 \begin{table}[H]
   \centering
-  \caption{Classification Task Results}
+  \caption{Regression --- 5-fold CV (mean $\pm$ std).}
+  \begin{tabular}{lcc}
+    \toprule
+    \textbf{Model} & \textbf{RMSE} (kg/ha) & \textbf{R$^2$} \\
+    \midrule
+    Linear Regression & $\mathbf{163.65 \pm 30.41}$ & $\mathbf{0.924 \pm 0.050}$ \\
+    Neural Network    & $213.63 \pm 91.89$ & $0.875 \pm 0.083$ \\
+    \bottomrule
+  \end{tabular}
+  \label{tab:regression_cv}
+\end{table}
+
+\begin{table}[H]
+  \centering
+  \caption{Classification --- chronological split. The test set contains 7/7 positive examples; metrics are degenerate (see discussion).}
   \begin{tabular}{lccc}
     \toprule
     \textbf{Model} & \textbf{Precision} & \textbf{Recall} & \textbf{F1} \\
@@ -167,29 +176,60 @@ For the \textbf{classification task}:
     Neural Network      & 1.00 & 1.00 & 1.00 \\
     \bottomrule
   \end{tabular}
-  \label{tab:classification}
+  \label{tab:classification_chrono}
+\end{table}
+
+\begin{table}[H]
+  \centering
+  \caption{Classification --- 5-fold stratified CV (mean $\pm$ std).}
+  \begin{tabular}{lccc}
+    \toprule
+    \textbf{Model} & \textbf{Precision} & \textbf{Recall} & \textbf{F1} \\
+    \midrule
+    Logistic Regression & $1.000 \pm 0.000$ & $0.900 \pm 0.200$ & $\mathbf{0.933 \pm 0.133}$ \\
+    Neural Network      & $1.000 \pm 0.000$ & $0.850 \pm 0.200$ & $0.905 \pm 0.131$ \\
+    \bottomrule
+  \end{tabular}
+  \label{tab:classification_cv}
 \end{table}
 
 \begin{figure}[H]
   \centering
   \includegraphics[width=\columnwidth]{comparison.png}
-  \caption{Side-by-side comparison of all models on regression (left) and classification (right) tasks.}
+  \caption{Side-by-side model comparison on the chronological split: regression RMSE (left), regression R$^2$ (centre, negative bars descend below zero), and classification metrics (right).}
   \label{fig:comparison}
 \end{figure}
 
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\columnwidth]{nn_training_curve.png}
+  \caption{Neural Network regression training curve. Train MSE drops to near zero while test MSE stalls above $2 \times 10^5$, indicating the network memorises the 28 training points without generalising to the 2018--2024 test window.}
+  \label{fig:nn_training}
+\end{figure}
+
 \subsection{Discussion}
-\textbf{Regression task:} Both models yield negative R\textsuperscript{2}, indicating neither fully captures the yield variance on the 7-sample test set. This is primarily a consequence of the very small dataset size (35 total samples, 7 for testing). Linear Regression (RMSE = 334.73 kg/ha) nevertheless outperforms the Neural Network, which is expected: with very few training samples, the NN tends to overfit the training data and generalise poorly.
 
-\textbf{Classification task:} Both models achieve perfect precision, recall, and F1-score. This can be explained by the nature of the yield data: Cambodia's rice yield has grown steadily over the 35-year period, making years before and after the median threshold largely linearly separable. Both a linear and a non-linear model can therefore learn the boundary with no misclassification.
+\noindent\textbf{Why is R$^2$ negative under the chronological split?}
+The 7 test years (2018--2024) all lie above the maximum yield seen in training (test range 3335--3644 kg/ha versus train max 3297 kg/ha). The test set therefore lies entirely outside the training distribution, and any linear model trained on the earlier years will systematically under-predict. Negative R$^2$ here reflects this distribution shift, not a failure of the models per se: Linear Regression still beats the naive ``predict train mean'' baseline by a factor of nearly 5$\times$ in RMSE (250 vs. 1188 kg/ha).
 
-These results highlight a key limitation of this study: with only 35 data points, statistical conclusions must be drawn with caution. A larger dataset — for example at the province level rather than the national level — would yield more robust and meaningful comparisons.
+\noindent\textbf{Cross-validation tells a different story.}
+Under 5-fold CV (where each fold's test points are interspersed with training points), Linear Regression reaches R$^2 = 0.924 \pm 0.050$. The neural network achieves R$^2 = 0.875 \pm 0.083$, which is competitive but slightly worse and substantially more variable across folds. This is consistent with theory: with $N = 35$, the bias-variance trade-off favours the simpler hypothesis class.
+
+\noindent\textbf{Standardised linear coefficients.}
+The fitted Linear Regression weights (chronological split) are: area harvested $+621.0$, rainfall $+55.0$, temperature $-18.1$. Area harvested dominates the prediction --- consistent with the very high yield--area correlation in Fig.~\ref{fig:eda} --- while climate variables make small contributions. This is more a feature of country-aggregated time series (where mechanisation and irrigation effects load onto ``area harvested'') than evidence that climate is irrelevant at finer spatial scales.
+
+\noindent\textbf{Why are classification metrics perfect on the chronological split?}
+The chronological test set contains only positive examples (all 7 years are above the train median). Any constant ``predict High'' predictor achieves $\text{F1} = 1.0$ on this set, so the chronological classification numbers cannot distinguish between models. The 5-fold stratified CV provides a meaningful comparison: Logistic Regression ($\text{F1} = 0.933 \pm 0.133$) edges out the Neural Network ($\text{F1} = 0.905 \pm 0.131$), but the difference is well within one standard deviation.
+
+\noindent\textbf{Limitations.}
+With $N = 35$ all conclusions remain noisy --- the cross-validation standard deviations are large in absolute terms. A larger dataset (e.g., province-level annual yields) would tighten estimates and re-enable a fair extrapolation test.
 
 % ─────────────────────────────────────────────────────────────────────────────
 \section{Conclusion}
 
-This paper presented a comparative study of Linear Regression, Logistic Regression, and a Neural Network for predicting Cambodia rice yield from historical agricultural and climate data. On the regression task, Linear Regression outperformed the Neural Network due to the small dataset size. On the classification task, both models achieved perfect scores, reflecting the clear temporal separation between low- and high-yield years.
+We compared Linear Regression, Logistic Regression, and a shallow PyTorch neural network on Cambodia rice yield prediction (1990--2024). The headline findings are: (i) under interpolating cross-validation Linear Regression achieves $R^2 = 0.92$ and slightly outperforms the neural network, consistent with the bias-variance argument for simple models on small datasets; (ii) the chronological test split exhibits a strong distribution shift that drives both models to negative test R$^2$, but Linear Regression remains $\sim$5$\times$ better than the naive baseline; (iii) classification on the chronological split is degenerate because the test set contains a single class; the stratified-CV protocol restores meaningful comparison and again places Logistic Regression slightly ahead.
 
-Future work could improve this study by: (1) collecting province-level yield data to increase the dataset size; (2) incorporating additional features such as fertiliser use, flood occurrence, and irrigation coverage; and (3) exploring more advanced models such as LSTM networks to capture temporal dependencies in the time-series data.
+Future work should: (1) collect province-level yield data to expand the dataset by an order of magnitude; (2) incorporate features such as fertiliser use, flood occurrence, and irrigation coverage; and (3) explore recurrent architectures (e.g., LSTM) once enough data are available to support them.
 
 % ─────────────────────────────────────────────────────────────────────────────
 \begin{thebibliography}{1}
@@ -198,16 +238,19 @@ Future work could improve this study by: (1) collecting province-level yield dat
 Food and Agriculture Organization of the United Nations, ``FAOSTAT Crops and Livestock Products,'' 2024. [Online]. Available: \url{https://www.fao.org/faostat/en/#data/QCL}
 
 \bibitem{wb_temp}
-World Bank Climate Change Knowledge Portal, ``Average Mean Surface Air Temperature — Cambodia,'' 2024. [Online]. Available: \url{https://climateknowledgeportal.worldbank.org}
+World Bank Climate Change Knowledge Portal, ``Average Mean Surface Air Temperature --- Cambodia,'' 2024. [Online]. Available: \url{https://climateknowledgeportal.worldbank.org}
 
 \bibitem{wb_rain}
-World Bank Climate Change Knowledge Portal, ``Annual Mean Precipitation — Cambodia,'' 2024. [Online]. Available: \url{https://climateknowledgeportal.worldbank.org}
+World Bank Climate Change Knowledge Portal, ``Annual Mean Precipitation --- Cambodia,'' 2024. [Online]. Available: \url{https://climateknowledgeportal.worldbank.org}
+
+\bibitem{khaki2019}
+S. Khaki and L. Wang, ``Crop Yield Prediction Using Deep Neural Networks,'' \textit{Frontiers in Plant Science}, vol.~10, p.~621, 2019.
 
 \bibitem{sklearn}
-F. Pedregosa et al., ``Scikit-learn: Machine Learning in Python,'' \textit{Journal of Machine Learning Research}, vol. 12, pp. 2825--2830, 2011.
+F. Pedregosa et al., ``Scikit-learn: Machine Learning in Python,'' \textit{Journal of Machine Learning Research}, vol.~12, pp.~2825--2830, 2011.
 
 \bibitem{pytorch}
-A. Paszke et al., ``PyTorch: An Imperative Style, High-Performance Deep Learning Library,'' \textit{Advances in Neural Information Processing Systems}, vol. 32, 2019.
+A. Paszke et al., ``PyTorch: An Imperative Style, High-Performance Deep Learning Library,'' \textit{Advances in Neural Information Processing Systems}, vol.~32, 2019.
 
 \end{thebibliography}
 
