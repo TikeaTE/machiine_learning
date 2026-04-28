@@ -1,0 +1,51 @@
+﻿Conceptual Guide to PyTorch
+PyTorch is a deep learning framework designed to make it easy to build, train, and experiment with neural networks. Its core strength lies in three things: tensors, dynamic computation, and automatic differentiation. Understanding these ideas conceptually is enough to begin reasoning about how training in PyTorch really works.
+Tensors: PyTorch’s Core Data Structure
+A tensor is the fundamental building block in PyTorch.
+It is a container for numerical data that can have any number of dimensions:
+* Scalars (0D)
+* Vectors (1D)
+* Matrices (2D)
+* Higher-dimensional arrays (3D, 4D, etc.)
+Tensors behave much like NumPy arrays but have two extra powers:
+1. They can be moved to the GPU for high-speed computation.
+2. They can track mathematical operations, enabling automatic differentiation later.
+When you tell PyTorch to “track” a tensor (by setting requires_grad=True), it starts recording how that tensor is used in computations — this is the foundation of the dynamic graph.
+The Computational Graph: A Record of Operations
+Every time an operation involves tracked tensors, PyTorch builds a computational graph behind the scenes.
+This graph connects tensors together through the operations that produced them.
+* Nodes represent operations (like addition, matrix multiplication, etc.).
+* Edges represent tensors flowing between operations.
+What makes PyTorch unique is that this graph is dynamic.It is created as you run your code, rather than being predefined before execution. This means:
+* You can use loops, conditions, and recursion naturally in your model.
+* Each forward pass builds a new graph that reflects the exact computation performed.
+* Debugging and experimentation become intuitive — just like normal Python.
+This flexibility is why PyTorch is favored in research: models can adapt in structure during runtime.
+Autograd: Automatic Differentiation Engine
+At the heart of PyTorch is autograd, the engine that performs automatic differentiation. It keeps track of all the operations in the computational graph and can compute derivatives of outputs with respect to inputs automatically.
+This is crucial in machine learning because training involves optimization — adjusting parameters based on how they influence a loss value. Autograd allows PyTorch to compute these derivatives efficiently without manual math.
+Gradients and the .grad Attribute
+Each tracked tensor (often model parameters) has an attribute called .grad. After performing backpropagation, this attribute stores the gradient — the partial derivative of the final output (e.g., the loss) with respect to that tensor.
+Conceptually:
+* The .grad tells you how much changing that tensor would affect the final result.
+* Gradients are what guide the optimization process — they tell the model in which direction and by how much to adjust its parameters.
+In training, these gradients are later used by an optimizer (like SGD or Adam) to update model parameters.
+Backpropagation and the .backward() Function
+To trigger the gradient computation, PyTorch provides the .backward() function.
+When called on a scalar output (typically the loss):
+1. PyTorch starts from that output node.
+2. It walks backward through the computational graph.
+3. It applies the chain rule of calculus to compute derivatives.
+4. It stores the results in the .grad attributes of all involved tensors.
+
+After .backward() runs, every tracked tensor knows how it contributed to the loss.
+Optimizers and Parameter Updates
+Gradients alone don’t train a model — they simply tell us the direction to move.
+An optimizer uses those gradients to update parameters.
+   * Each training step typically follows this loop:
+
+      1. Compute the output and loss.
+      2. Call .backward() to compute gradients.
+      3. Use the optimizer to update parameters using .grad.
+      4. Reset the gradients for the next step (since PyTorch accumulates them by default).
+This cycle — forward pass → backward pass → parameter update — is the heartbeat of deep learning in PyTorch.

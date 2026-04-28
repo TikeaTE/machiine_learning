@@ -1,0 +1,60 @@
+Sample Codes
+
+Exercise 2.1:
+https://colab.research.google.com/drive/1XJYUepVFJEaZwmCFtVy3qpaSajyZvuJA?usp=sharing
+
+Pytorch Example:
+https://colab.research.google.com/drive/1f8_Gz4oaF_rMfB59u0Hg5NPBghUu1CDQ?usp=sharing
+
+Exercise 2.2.1:
+https://colab.research.google.com/drive/1NAvj9mdYfbU6F8smfa2HozwxGJcCECjq?usp=sharing
+
+Exercise 2.2.1 (with Optimizer):
+https://colab.research.google.com/drive/1OPn7NIYZG2BuJHx2U7fxEGQesb3HI4Hu?usp=sharing
+
+Exercise 2.2.2:
+https://colab.research.google.com/drive/17LWmGhgB-qxJja_c6nSx6d3qZfSQEr74?usp=sharing
+
+Exercise 3.1.1:
+https://colab.research.google.com/drive/1_ybFkC08XvWh516T3RbbtL3XRosIYpm6?usp=sharing
+
+Exercise 3.1.1 (Version 2):
+https://colab.research.google.com/drive/10OQ7fGYf9Q-A2933PjW9uHAwlNcjr_cC?usp=sharing
+
+Exercise 3.2 (nn.Module):
+https://colab.research.google.com/drive/16lToAfhzNvVxItNyiSflYtKzpksr3lwP?usp=sharing
+
+Exercise 3.2 (sklearn version):
+https://colab.research.google.com/drive/1M5vS_8dMB8M6QzWchkaHyYVetd8QyjTG?usp=sharing
+
+Exercise 4.1.1: 
+https://colab.research.google.com/drive/1yz97ZARafY0Es8ZeMQolBlEEuQKJ4ImM?usp=sharing
+
+Exercise 4.1.2:
+https://colab.research.google.com/drive/1BWQcwcPu7O5JlFLWgfdxceytgMSDtMZU?usp=sharing
+Exercise 4.2:
+https://colab.research.google.com/drive/1lxRkQ2N8-opsExLKmcbAJqtRpO23y-Rw?usp=sharing
+
+Exercise 4.3:
+https://colab.research.google.com/drive/1f6qLwDdPRc9ihAvoWazOM22oapOVEUiy?usp=sharing
+
+Exercise 5.1:
+https://colab.research.google.com/drive/1kTmpies3RqhGNJUIPTAeROzh6kXeg1zM?usp=sharing
+
+Exercise 6.1:
+https://colab.research.google.com/drive/1sEX_U5ZQpnslDfL_bjdOZcCFuHILo48A?usp=sharing
+
+Exercise 6.2:
+https://colab.research.google.com/drive/1daedKiiAkLt-OXnOEyDQOH2bYcbPSXKB?usp=sharing
+
+Exercise 7.1:
+https://colab.research.google.com/drive/1QLoa2rHTcbDO4zBhV4cJLQ4B6zANuk1A?usp=sharing
+
+MNIST Autoencoder:
+https://colab.research.google.com/drive/1yLOq6ldmDk6I1LzTJTSug81SeqSyMQPb?usp=sharing
+
+Pytorch Guideline
+https://docs.google.com/document/d/1VRS7ukJXNul_cJrbrihV1oWEXsna-wCHUJ61zzOlmdQ/edit?usp=sharing
+
+
+
