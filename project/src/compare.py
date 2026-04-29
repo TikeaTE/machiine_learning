@@ -41,15 +41,28 @@ def run_comparison():
     # -- Panel 2: R² (chronological split) --
     ax = axes[1]
     bars = ax.bar(reg_models, r2_vals, color=['#888888', '#4878cf', '#d65f5f'], edgecolor='k')
+
+    # Compute padding based on the data range so labels sit nicely off the bar
+    y_min, y_max = min(r2_vals + [0]), max(r2_vals + [0])
+    pad = (y_max - y_min) * 0.04  # ~4% of the range
+
     for bar, val in zip(bars, r2_vals):
-        y = val + (0.5 if val < 0 else 0.05)
+        if val >= 0:
+            y = val + pad
+            va = 'bottom'
+        else:
+            y = val - pad
+            va = 'top'
         ax.text(bar.get_x() + bar.get_width()/2, y,
-                f'{val:.2f}', ha='center', fontsize=10, fontweight='bold')
+                f'{val:.2f}', ha='center', va=va, fontsize=10, fontweight='bold')
+
+    # Extend y-limits a bit so labels below negative bars aren't clipped
+    ax.set_ylim(y_min - pad * 3, y_max + pad * 3)
+
     ax.axhline(0, color='black', lw=0.8)
     ax.set_ylabel('R²')
     ax.set_title('Regression Task — Test R²\n(higher is better; negative ⇒ worse than baseline)')
     ax.grid(axis='y', alpha=0.3)
-
     # -- Panel 3: classification metrics --
     ax = axes[2]
     x = np.arange(2); w = 0.25
@@ -83,6 +96,11 @@ def run_comparison():
            color=['#4878cf', '#d65f5f'], edgecolor='k', capsize=8)
     for i, (m, s) in enumerate(zip(means, stds)):
         ax.text(i, m + s + 5, f'{m:.0f} ± {s:.0f}', ha='center', fontweight='bold')
+
+    # add ~10% headroom above the tallest label so it isn't flush with the top
+    top_label_y = max(m + s for m, s in zip(means, stds)) + 5
+    ax.set_ylim(0, top_label_y * 1.10)
+    
     ax.set_ylabel('RMSE (kg/ha)')
     ax.set_title('Regression — 5-fold CV RMSE')
     ax.grid(axis='y', alpha=0.3)
